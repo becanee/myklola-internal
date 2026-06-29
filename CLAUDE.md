@@ -41,7 +41,9 @@ src/lib/utils.ts              # cn() utility (clsx + tailwind-merge)
 
 **Module rule:** Each module folder may ONLY contain `index.tsx` + `_logic.tsx`. All sidebar, nav, and layout components live in `src/components/`.
 
-**Subfolder modules** group related features: `src/modules/settings/users/`, `src/modules/client/models/`, etc.
+**Subfolder modules** group related features: `src/modules/settings/users/`, `src/modules/settings/roles/`, `src/modules/client/models/`, `src/modules/client/datas/`, `src/modules/client/request-logs/`.
+
+**Server-side API routes** in `src/app/api/` — e.g. `src/app/api/chat/route.ts` proxies POST requests to `NEXT_PUBLIC_AI_CHAT_URL/chat/completions` with `Authorization: Bearer` header, streaming SSE back to the client to bypass CORS.
 
 **Shared components** in `src/modules/shared/index.tsx`:
 - `ModeSwitcher` — segmented control for toggling `AppMode` ("dashboard" | "ai"), adapts to collapsed sidebar
@@ -64,6 +66,10 @@ src/lib/utils.ts              # cn() utility (clsx + tailwind-merge)
 Env vars: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
 
 `NEXT_PUBLIC_API_URL` — base URL for the axios API instance (defaults to `https://api.myklola.cloud/webhook-test/gateway`)
+
+`NEXT_PUBLIC_AI_CHAT_URL` — base URL for AI chat completions (defaults to `https://ai.myklola.cloud/v1`)
+
+`NEXT_PUBLIC_AI_CHAT_API_KEY` — Bearer token for AI chat API (`sk-...`)
 
 ### Pages
 
@@ -90,9 +96,51 @@ Every page module uses the same pattern. `ModeSwitcher` segmented control toggle
 | Mode | Sidebar | Content |
 |------|---------|---------|
 | `"dashboard"` | `AppSidebar` | `PageHeader` + page-specific content |
-| `"ai"` | `ChatSidebar` (chat history) | `ChatContent` (message bubbles + input) |
+| `"ai"` | `ChatSidebar` (real conversations) | `ChatContent` (streaming chat) |
 
-Mode state: `useState<AppMode>("dashboard")` in each page module. `AppMode` defined in `src/modules/shared/_logic.tsx`.
+Page module pattern (repeated in `dashboard/index.tsx`, `settings/users/index.tsx`, `settings/roles/index.tsx`, `client/datas/index.tsx`, `client/models/index.tsx`, `client/request-logs/index.tsx`):
+
+```tsx
+export function SomePage() {
+  const [mode, setMode] = useState<AppMode>("dashboard")
+  const {
+    conversations,
+    activeId,
+    createConversation,
+    deleteConversation,
+    selectConversation,
+    updateConversationMessages,
+  } = useChatHistory()  // from @/modules/ai/_logic
+
+  return (
+    <SidebarProvider>
+      {mode === "dashboard" ? (
+        <AppSidebar mode="dashboard" onModeChange={setMode} />
+      ) : (
+        <ChatSidebar
+
+          onModeChange={setMode}
+          conversations={conversations}
+          activeConversationId={activeId}
+          onSelectConversation={selectConversation}
+          onNewChat={createConversation}
+          onDeleteConversation={deleteConversation}
+        />
+      )}
+      <SidebarInset>
+        {mode === "dashboard" ? <SomeContent /> : (
+          <ChatContent
+            activeConversationId={activeId}
+            conversations={conversations}
+            onNewChat={createConversation}
+            onConversationUpdate={updateConversationMessages}
+          />
+        )}
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}
+```
 
 ### Sidebar System
 
@@ -104,9 +152,9 @@ Mode state: `useState<AppMode>("dashboard")` in each page module. `AppMode` defi
 | `navClient` | `NavClient` (nav-client.tsx) | "CLIENTS" |
 | `navSettings` | `NavSettings` (nav-settings.tsx) | "SETTINGS" |
 
-Each nav component uses `SidebarGroup` + `Collapsible` + `usePathname()` for active-link highlighting. `NavProjects` is available but currently commented out in the sidebar. `NavUser` is the user avatar dropdown in the sidebar footer.
+Each nav component uses `SidebarGroup` + `Collapsible` + `usePathname()` for active-link highlighting. `NavProjects` is available but currently commented out in the sidebar.
 
-`ChatSidebar` in `src/components/chat-sidebar.tsx` — AI chat history list. Consumes `chatHistory` from `@/modules/ai/_logic`. Also re-exported from `@/modules/ai`.
+`ChatSidebar` in `src/components/chat-sidebar.tsx` — real conversation list sidebar. Props: `conversations`, `activeConversationId`, `onSelectConversation`, `onNewChat`, `onDeleteConversation`, `onModeChange`. Sorted by `updatedAt` descending, delete button appears on hover, "New chat" button creates a new conversation. Uses `date-fns` `formatDistanceToNow` for relative timestamps. Also re-exported from `@/modules/ai`.
 
 ### API Requests
 
@@ -133,10 +181,26 @@ Custom hooks in `_logic.tsx` consume `useSession()` from Clerk and call helpers 
 
 ### AI Module
 
-`src/modules/ai/` provides the chat interface used in "AI" mode across all pages:
-- `ChatContent` — full chat UI: welcome screen with suggestion chips, message bubbles (user/assistant), textarea input with Enter-to-send
-- `ChatSidebar` — re-exported from `src/components/chat-sidebar.tsx`, shows static chat history from `_logic.tsx`
-- `Message` type (`{ id, role: "user"|"assistant", content }`) — AI responses are currently placeholder text, not wired to a real backend
+`src/modules/ai/` provides the chat interface used in "AI" mode across all pages.
+
+**_logic.tsx (`src/modules/ai/_logic.tsx`):**
+- `Message` type — `{ id, role: "user"|"assistant", content }`
+- `Conversation` type — `{ id, title, createdAt, updatedAt, messages: Message[] }`
+- `StreamStatus` — `"idle" | "streaming" | "done" | "error"`
+- `useChatHistory()` — conversation CRUD backed by localStorage (key `klola_chat_conversations`). Methods: `createConversation`, `deleteConversation`, `selectConversation`, `updateConversationMessages`. Auto-generates title from first user message (max 40 chars). Returns `{ conversations, activeId, loaded, ... }`.
+- `useChatStream()` — SSE streaming via `fetch` + `ReadableStream` + `AbortController`. Calls `/api/chat` (server proxy). Parses OpenAI-compatible SSE format (`choices[0].delta.content` + `[DONE]` marker). Returns `{ status, selectedModel, setSelectedModel, sendMessage(messages, conversationId, model, onToken, onDone, onError), stopGeneration }`.
+- `getApiChatUrl()` — reads `NEXT_PUBLIC_AI_CHAT_URL`
+- `nextId()` — `crypto.randomUUID()`
+- `makeTitle(text)` — truncates to 40 chars
+
+**index.tsx (`src/modules/ai/index.tsx`):**
+- `ChatContent` — full streaming chat UI. Props: `activeConversationId`, `conversations`, `onNewChat`, `onConversationUpdate`. Features: SSE streaming with token-by-token display, markdown rendering (react-markdown + remark-gfm), syntax-highlighted code blocks (react-syntax-highlighter PrismLight with copy button), typing indicator (3 bouncing dots), model selector dropdown (from `useModels`, filtered `is_active=true`), stop generation button, auto-scroll (only when near bottom), welcome screen with suggestion chips.
+- `MessageBubble` — user messages plain text, assistant messages via `<MarkdownRenderer>`
+- `CodeBlock` — language label + syntax highlighting + copy-to-clipboard button
+- `MarkdownRenderer` — `ReactMarkdown` + `remarkGfm` with custom components (code, link, table, list, heading, blockquote)
+- `ChatSidebar` — re-exported from `src/components/chat-sidebar.tsx`
+
+**CSS layout pattern (chat container):** `flex flex-col min-h-0 flex-1` for the outer wrapper. Chat area: `flex-1 min-h-0 overflow-y-auto`. Input bar: `shrink-0`. The `min-h-0` is critical — without it flex children can't shrink below their content minimum, causing the input bar to overflow off-screen.
 
 ### Styling
 
