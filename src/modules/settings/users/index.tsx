@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { ChatContent, ChatSidebar } from "@/modules/ai"
+import { useChatHistory } from "@/modules/ai/_logic"
 import { type AppMode, PageHeader } from "@/modules/shared"
 import {
   IconAlertCircle, IconCircleFilled,
@@ -499,16 +500,38 @@ function UsersContent() {
 
 export function UsersPage() {
   const [mode, setMode] = useState<AppMode>("dashboard")
+  const {
+    conversations,
+    activeId,
+    createConversation,
+    deleteConversation,
+    selectConversation,
+    updateConversationMessages,
+  } = useChatHistory()
 
   return (
     <SidebarProvider>
       {mode === "dashboard" ? (
         <AppSidebar mode="dashboard" onModeChange={setMode} />
       ) : (
-        <ChatSidebar onModeChange={setMode} />
+        <ChatSidebar
+          onModeChange={setMode}
+          conversations={conversations}
+          activeConversationId={activeId}
+          onSelectConversation={selectConversation}
+          onNewChat={createConversation}
+          onDeleteConversation={deleteConversation}
+        />
       )}
       <SidebarInset>
-        {mode === "dashboard" ? <UsersContent /> : <ChatContent />}
+        {mode === "dashboard" ? <UsersContent /> : (
+          <ChatContent
+            activeConversationId={activeId}
+            conversations={conversations}
+            onNewChat={createConversation}
+            onConversationUpdate={updateConversationMessages}
+          />
+        )}
       </SidebarInset>
     </SidebarProvider>
   )

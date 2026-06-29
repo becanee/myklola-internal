@@ -15,6 +15,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { ChatContent, ChatSidebar } from "@/modules/ai"
+import { useChatHistory } from "@/modules/ai/_logic"
 import { type AppMode, PageHeader } from "@/modules/shared"
 import { useState } from "react"
 
@@ -50,16 +51,40 @@ function DashboardContent() {
 
 export function DashboardPage() {
   const [mode, setMode] = useState<AppMode>("dashboard")
+  const {
+    conversations,
+    activeId,
+    createConversation,
+    deleteConversation,
+    selectConversation,
+    updateConversationMessages,
+  } = useChatHistory()
 
   return (
     <SidebarProvider>
       {mode === "dashboard" ? (
         <AppSidebar mode="dashboard" onModeChange={setMode} />
       ) : (
-        <ChatSidebar onModeChange={setMode} />
+        <ChatSidebar
+          onModeChange={setMode}
+          conversations={conversations}
+          activeConversationId={activeId}
+          onSelectConversation={selectConversation}
+          onNewChat={createConversation}
+          onDeleteConversation={deleteConversation}
+        />
       )}
       <SidebarInset>
-        {mode === "dashboard" ? <DashboardContent /> : <ChatContent />}
+        {mode === "dashboard" ? (
+          <DashboardContent />
+        ) : (
+          <ChatContent
+            activeConversationId={activeId}
+            conversations={conversations}
+            onNewChat={createConversation}
+            onConversationUpdate={updateConversationMessages}
+          />
+        )}
       </SidebarInset>
     </SidebarProvider>
   )

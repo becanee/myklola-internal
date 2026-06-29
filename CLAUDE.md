@@ -6,13 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 bun run dev    # start dev server
-bun run build  # production build
-bun run start  # start production server
+bun run build  # production build (output: standalone mode)
+bun run start  # start production server (runs .next/standalone/server.js)
 bun add <pkg>  # install dependencies (always use bun, never npm)
 bunx <cmd>     # run one-off packages
 ```
 
 No test runner is configured yet.
+
+`ignoreScripts` in package.json skips `sharp` and `unrs-resolver` postinstall scripts — these packages are in `trustedDependencies`.
+
+## Docker
+
+Multi-stage Dockerfile using `oven/bun:1`. Three stages: dependencies (`bun install --frozen-lockfile`) → builder (`bun run build`) → runner (copies `.next/standalone` + `.next/static`, runs as non-root `bun` user on port 3000). Build output is `standalone` mode (configured in `next.config.ts`).
 
 ## Architecture
 
@@ -45,7 +51,7 @@ src/lib/utils.ts              # cn() utility (clsx + tailwind-merge)
 ### Auth (Clerk)
 
 `src/proxy.ts` — Next.js 16 equivalent of middleware (renamed in v16). Uses `clerkMiddleware()` with `createRouteMatcher`:
-- **Public route:** `/sign-in(.*)` — everything else protected via `auth.protect()`
+- **Public routes:** `/sign-in(.*)` and `/v1(.*)` — everything else protected via `auth.protect()`
 - Post sign-in redirects to `/` (dashboard)
 - `<ClerkProvider>` wraps root layout in `src/app/layout.tsx`
 - Sign-in page: `src/app/sign-in/[[...sign-in]]/page.tsx`
@@ -57,6 +63,8 @@ src/lib/utils.ts              # cn() utility (clsx + tailwind-merge)
 
 Env vars: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
 
+`NEXT_PUBLIC_API_URL` — base URL for the axios API instance (defaults to `https://api.myklola.cloud/webhook-test/gateway`)
+
 ### Pages
 
 | Route | Server page | Module |
@@ -65,6 +73,8 @@ Env vars: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
 | `/settings/users` | `src/app/settings/users/page.tsx` | `@/modules/settings/users` |
 | `/settings/roles` | `src/app/settings/roles/page.tsx` | `@/modules/settings/roles` |
 | `/client/models` | `src/app/client/models/page.tsx` | `@/modules/client/models` |
+| `/client/datas` | `src/app/client/datas/page.tsx` | `@/modules/client/datas` |
+| `/client/request-logs` | `src/app/client/request-logs/page.tsx` | `@/modules/client/request-logs` |
 | `/sign-in` | `src/app/sign-in/[[...sign-in]]/page.tsx` | Clerk `<SignIn />` |
 
 **Thin server page pattern** — each `page.tsx` just imports and renders the module's page component:
@@ -121,13 +131,21 @@ Custom hooks in `_logic.tsx` consume `useSession()` from Clerk and call helpers 
 - **Mutation hooks** (`useUpdateUser`, `useCreateRole`, `useDeleteModel`, etc.): return `{ loading, mutate(...) }` where `mutate` returns `{ ok: boolean, message: string }`.
 - `useRolesList` — special hook that returns only `{ key, name, is_active }` for select dropdowns.
 
+### AI Module
+
+`src/modules/ai/` provides the chat interface used in "AI" mode across all pages:
+- `ChatContent` — full chat UI: welcome screen with suggestion chips, message bubbles (user/assistant), textarea input with Enter-to-send
+- `ChatSidebar` — re-exported from `src/components/chat-sidebar.tsx`, shows static chat history from `_logic.tsx`
+- `Message` type (`{ id, role: "user"|"assistant", content }`) — AI responses are currently placeholder text, not wired to a real backend
+
 ### Styling
 
 - Tailwind CSS v4 + `tw-animate-css` + `shadcn/tailwind.css`
 - shadcn/ui `radix-maia` style, zinc base, CSS variables in OKLCH, `components.json` at root
+- Add shadcn components: `bunx shadcn@latest add <component>`
 - Icon libraries: `@tabler/icons-react` (primary), `lucide-react` (installed), `@hugeicons/react` (installed)
 - Fonts: Space Grotesk (`--font-sans`), Montserrat (`--font-heading`), Geist (`--font-geist-sans`), Geist Mono (`--font-geist-mono`)
-- Dark mode: `next-themes` (class strategy, system default, `disableTransitionOnChange`)
+- Dark mode: `next-themes` (class strategy, system default, `disableTransitionOnChange`). Wrapper in `src/components/theme-provider.tsx`
 - `cn()` from `src/lib/utils.ts` for className merging (clsx + tailwind-merge)
 - `Toaster` with `position="top-center" richColors` via `sonner`
 - View transitions: disabled default animation for theme switching smoothness

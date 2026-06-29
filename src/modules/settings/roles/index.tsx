@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ChatContent, ChatSidebar } from "@/modules/ai"
+import { useChatHistory } from "@/modules/ai/_logic"
 import { type AppMode, PageHeader } from "@/modules/shared"
 import {
   IconAlertCircle,
@@ -522,16 +523,38 @@ function RolesContent() {
 
 export function RolesPage() {
   const [mode, setMode] = useState<AppMode>("dashboard")
+  const {
+    conversations,
+    activeId,
+    createConversation,
+    deleteConversation,
+    selectConversation,
+    updateConversationMessages,
+  } = useChatHistory()
 
   return (
     <SidebarProvider>
       {mode === "dashboard" ? (
         <AppSidebar mode="dashboard" onModeChange={setMode} />
       ) : (
-        <ChatSidebar onModeChange={setMode} />
+        <ChatSidebar
+          onModeChange={setMode}
+          conversations={conversations}
+          activeConversationId={activeId}
+          onSelectConversation={selectConversation}
+          onNewChat={createConversation}
+          onDeleteConversation={deleteConversation}
+        />
       )}
       <SidebarInset>
-        {mode === "dashboard" ? <RolesContent /> : <ChatContent />}
+        {mode === "dashboard" ? <RolesContent /> : (
+          <ChatContent
+            activeConversationId={activeId}
+            conversations={conversations}
+            onNewChat={createConversation}
+            onConversationUpdate={updateConversationMessages}
+          />
+        )}
       </SidebarInset>
     </SidebarProvider>
   )
