@@ -15,7 +15,9 @@ import { cn } from "@/lib/utils"
 import { ModeSwitcher, type AppMode } from "@/modules/shared"
 import {
   IconBrain,
+  IconBrandWhatsapp,
   IconBuildings,
+  IconCalculator,
   IconChartPie,
   IconFileText,
   IconFrame,
@@ -53,6 +55,11 @@ export const sidebarData = {
       icon: IconBuildings,
     },
     {
+      title: "Invoice Calculator",
+      url: "/invoice-calculator",
+      icon: IconCalculator,
+    },
+    {
       title: "Models",
       url: "/client/models",
       icon: IconBrain,
@@ -64,6 +71,11 @@ export const sidebarData = {
     },
   ],
   navSettings: [
+    {
+      title: "WhatsApp",
+      url: "/settings/whatsapp",
+      icon: IconBrandWhatsapp,
+    },
     {
       title: "Users",
       url: "/settings/users",

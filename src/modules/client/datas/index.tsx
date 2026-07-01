@@ -77,7 +77,7 @@ function formatDateTime(iso: string): string {
 // ---------------------------------------------------------------------------
 
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
-  const headers = ["Klola ID", "Access", "Status", "Created", "Actions"]
+  const headers = ["Klola ID", "Employees", "Access", "Status", "Created", "Actions"]
 
   return (
     <div className="rounded-xl border bg-card">
@@ -91,6 +91,7 @@ function TableSkeleton({ rows = 5 }: { rows?: number }) {
           {Array.from({ length: rows }).map((_, i) => (
             <TableRow key={i}>
               <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+              <TableCell><Skeleton className="h-5 w-10" /></TableCell>
               <TableCell>
                 <div className="flex gap-1">
                   <Skeleton className="h-5 w-16 rounded-full" />
@@ -179,6 +180,7 @@ function DetailSheet({
               <p className="text-xs font-medium text-muted-foreground px-4 pt-3 pb-2">Info</p>
               <div className="px-4 pb-1.5">
                 <DetailRow label="Klola ID" value={client.klola_id} />
+                <DetailRow label="Total Employees" value={String(client.total_employee)} />
                 <DetailRow label="Default Model" value={client.default_model} />
                 <DetailRow label="Fallback Model" value={client.fallback_model} />
                 <DetailRow label="Active" value={client.is_active ? "Yes" : "No"} />
@@ -219,7 +221,7 @@ function DetailSheet({
 // ---------------------------------------------------------------------------
 
 const emptyForm: ClientFormData = {
-  updated_by: "", klola_id: "", access: [],
+  updated_by: "", klola_id: "", total_employee: 0, access: [],
   default_model: "", fallback_model: "",
   is_active: true,
 }
@@ -286,6 +288,18 @@ function ClientFormDialog({
                 onChange={(e) => update("klola_id", e.target.value)}
                 placeholder="e.g. DEV"
                 required
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="c-total-employee">Total Employees</Label>
+              <Input
+                id="c-total-employee"
+                type="number"
+                value={form.total_employee}
+                onChange={(e) => update("total_employee", Number(e.target.value))}
+                placeholder="0"
+                min={0}
               />
             </div>
 
@@ -474,6 +488,7 @@ function DatasContent() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Klola ID</TableHead>
+                  <TableHead>Employees</TableHead>
                   <TableHead>Access</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -486,6 +501,7 @@ function DatasContent() {
                     <TableCell className="font-medium">
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{client.klola_id}</code>
                     </TableCell>
+                    <TableCell className="text-sm">{client.total_employee}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {client.access.slice(0, 3).map((a) => (
@@ -530,6 +546,7 @@ function DatasContent() {
         open={formOpen} onOpenChange={setFormOpen}
         initial={editingClient ? {
           updated_by: updatedBy, klola_id: editingClient.klola_id,
+          total_employee: editingClient.total_employee,
           access: editingClient.access,
           default_model: editingClient.default_model,
           fallback_model: editingClient.fallback_model,

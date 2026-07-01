@@ -26,6 +26,7 @@ export interface Client {
   updated_at: string | null
   updated_by: string
   klola_id: string
+  total_employee: number
   access: string[]
   default_model: string
   fallback_model: string
@@ -43,6 +44,7 @@ export interface ApiResponse<T> {
 export interface ClientFormData {
   updated_by: string
   klola_id: string
+  total_employee: number
   access: string[]
   default_model: string
   fallback_model: string
